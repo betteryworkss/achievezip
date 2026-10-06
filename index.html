@@ -1,0 +1,2009 @@
+<!DOCTYPE html>
+<!-- ============================================================
+  zip. — 취향을 위한 영상·이미지 기록
+  구성: 헤더 / 히어로(노드 지구본) / 아카이브 폴더(피드) / 푸터
+        + 이미지 추가·수정 다이얼로그 / 폴더 다이얼로그 / 라이트박스 / 위로 가기 버튼
+  저장: 브라우저 IndexedDB (새로고침해도 유지)
+============================================================ -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f5f5f7">
+<meta name="description" content="zip.은 이미지, 링크, PDF를 폴더별로 보관하고 노드와 링크로 연결해 한눈에 확인하는 취향 아카이브입니다.">
+<title>zip. — 취향을 위한 영상·이미지 기록</title>
+
+<!-- 웹폰트: 영문 Inter(Google Fonts), 한글 Pretendard(jsDelivr) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+
+<style>
+/* ============================================================
+   0. 디자인 토큰 & 리셋
+   팔레트: 그레이(바탕·글자) + 핑크 · 보라 · 레몬 · 베이비블루(포인트)
+============================================================ */
+:root {
+  /* 그레이 */
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #ececf0;
+  --line: rgba(29, 29, 31, .12);
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+
+  /* 포인트 컬러 (면에 쓰는 파스텔 / 선·강조에 쓰는 진한 톤) */
+  --pink: #ff9cc6;    --pink-rgb: 255, 156, 198;   --pink-strong: #ff6fae;
+  --purple: #b5a2ff;  --purple-rgb: 181, 162, 255; --purple-strong: #8a6bff;
+  --lemon: #ffe96b;   --lemon-rgb: 255, 233, 107;  --lemon-strong: #f2c200;
+  --sky: #a6dcff;     --sky-rgb: 166, 220, 255;    --sky-strong: #4fb8f5;
+
+  --radius: 12px;
+  --radius-s: 8px;
+  --header-h: 64px;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 76px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  /* 영문은 Inter, 한글은 Pretendard로 글리프 단위 대체됨 */
+  font-family: 'Inter', 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 17px;
+  line-height: 1.65;
+  letter-spacing: -.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.no-scroll { overflow: hidden; }
+
+img { max-width: 100%; height: auto; display: block; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+:focus-visible { outline: 2px solid var(--purple-strong); outline-offset: 3px; }
+
+.container { width: min(1120px, 100% - 40px); margin-inline: auto; }
+
+/* 섹션 간 여백: 스크롤 시 답답하지 않도록 넉넉하게 */
+.section { padding: clamp(96px, 14vw, 168px) 0; }
+
+.lead {
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: clamp(1.0625rem, 2vw, 1.25rem);
+  line-height: 1.6;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+
+/* ============================================================
+   1. 버튼 (부드러운 hover transition)
+============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 24px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .35s var(--ease), color .35s var(--ease),
+              border-color .35s var(--ease), box-shadow .35s var(--ease),
+              transform .35s var(--ease);
+}
+.btn:active { transform: scale(.97); }
+
+.btn-primary { background: var(--text); color: #fff; }
+.btn-primary:hover {
+  background: var(--purple);
+  color: var(--text);
+  box-shadow: 0 10px 34px rgba(var(--purple-rgb), .6);
+  transform: translateY(-2px);
+}
+
+.btn-secondary { background: var(--surface); color: var(--text); border-color: var(--line); }
+.btn-secondary:hover {
+  border-color: var(--pink-strong);
+  box-shadow: 0 10px 30px rgba(var(--pink-rgb), .5);
+  transform: translateY(-2px);
+}
+
+.btn-small { min-height: 40px; padding: 0 16px; font-size: .9375rem; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: .9375rem;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--purple-strong); box-shadow: 0 6px 22px rgba(var(--purple-rgb), .45); }
+.btn-ghost.danger:hover { border-color: var(--pink-strong); box-shadow: 0 6px 22px rgba(var(--pink-rgb), .5); }
+
+/* ============================================================
+   2. 헤더 (스크롤 200px 이상 → 어둡게 + 그림자)
+============================================================ */
+.site-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  height: var(--header-h);
+  background: rgba(245, 245, 247, .55);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: background-color .4s var(--ease), box-shadow .4s var(--ease), border-color .4s var(--ease);
+}
+.site-header.scrolled {
+  background: rgba(226, 226, 232, .94);
+  border-bottom-color: var(--line);
+  box-shadow: 0 10px 30px rgba(29, 29, 31, .16);
+}
+
+.header-inner { height: 100%; display: flex; align-items: center; justify-content: space-between; }
+
+.logo {
+  font-weight: 700;
+  font-size: 1.65rem;
+  letter-spacing: -.05em;
+  text-decoration: none;
+  line-height: 1;
+}
+.logo span { color: var(--pink-strong); }
+
+.nav { display: flex; align-items: center; gap: 4px; }
+.nav a:not(.btn) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-s);
+  color: var(--muted);
+  font-size: .9375rem;
+  text-decoration: none;
+  transition: color .3s var(--ease), background-color .3s var(--ease);
+}
+.nav a:not(.btn):hover { color: var(--text); background: rgba(29, 29, 31, .07); }
+.nav .btn { margin-left: 8px; }
+
+/* 햄버거 아이콘: 막대 3개를 CSS로만 그림 */
+.menu-btn {
+  display: none;
+  position: relative;
+  width: 48px; height: 48px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+.menu-btn .bar {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 22px; height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  transition: background-color .3s var(--ease);
+}
+.menu-btn .bar::before,
+.menu-btn .bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%; height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: top .3s var(--ease), transform .3s var(--ease);
+}
+.menu-btn .bar::before { top: -7px; }
+.menu-btn .bar::after  { top: 7px; }
+.menu-btn[aria-expanded="true"] .bar { background: transparent; }
+.menu-btn[aria-expanded="true"] .bar::before { top: 0; transform: rotate(45deg); }
+.menu-btn[aria-expanded="true"] .bar::after  { top: 0; transform: rotate(-45deg); }
+
+/* ============================================================
+   3. 히어로 (제목 + 노드 지구본)
+============================================================ */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: calc(var(--header-h) + clamp(56px, 9vw, 104px)) 0 clamp(88px, 11vw, 140px);
+  text-align: center;
+}
+.hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(60% 46% at 50% 0%, rgba(var(--pink-rgb), .30), transparent 70%),
+    radial-gradient(40% 40% at 94% 32%, rgba(var(--sky-rgb), .38), transparent 70%),
+    radial-gradient(40% 40% at 5% 42%, rgba(var(--purple-rgb), .30), transparent 70%),
+    radial-gradient(30% 26% at 72% 92%, rgba(var(--lemon-rgb), .32), transparent 70%);
+  pointer-events: none;
+}
+.hero > .container { position: relative; }
+
+.hero h1 {
+  font-size: clamp(2.75rem, 9vw, 6rem);
+  line-height: 1.05;
+  letter-spacing: -.05em;
+  font-weight: 700;
+}
+.hero h1 span { color: var(--pink-strong); }
+
+.hero .lead { max-width: 600px; margin-inline: auto; }
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+/* 지구본 무대: 마우스 이동 → 이미지 부각 / 클릭한 채 끌기 → 지구처럼 회전 */
+.stage {
+  --node-size: 120px;
+  position: relative;
+  height: clamp(620px, 92vh, 880px);
+  margin-top: clamp(48px, 7vw, 80px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  background-image: radial-gradient(rgba(29, 29, 31, .09) 1px, transparent 1px);
+  background-size: 28px 28px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  box-shadow: 0 30px 80px rgba(29, 29, 31, .08);
+}
+.stage::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--purple-rgb), .20), transparent 55%);
+  pointer-events: none;
+}
+.stage.dragging { cursor: grabbing; }
+
+.world { position: absolute; inset: 0; }
+
+.links {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.globe-outline { fill: none; stroke: rgba(29, 29, 31, .14); stroke-width: 1; }
+.globe-line { fill: none; stroke: #1d1d1f; stroke-width: 1; }
+.globe-line.front { stroke-opacity: .13; }
+.globe-line.back  { stroke-opacity: .04; }
+
+.link { fill: none; stroke-linecap: round; stroke-opacity: .25; }
+.link.c0 { stroke: var(--pink-strong); }
+.link.c1 { stroke: var(--purple-strong); }
+.link.c2 { stroke: var(--sky-strong); }
+.link.c3 { stroke: var(--lemon-strong); }
+
+/* 노드: 위치·크기·깊이는 JS가 매 프레임 계산, --g(0~1)는 마우스 근접도 */
+.node {
+  --g: .4;
+  position: absolute;
+  left: 0; top: 0;
+  width: var(--node-size);
+  height: var(--node-size);
+  margin: calc(var(--node-size) / -2) 0 0 calc(var(--node-size) / -2);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  will-change: transform, opacity;
+}
+.node.c0 { --c: var(--pink-rgb); }
+.node.c1 { --c: var(--purple-rgb); }
+.node.c2 { --c: var(--sky-rgb); }
+.node.c3 { --c: var(--lemon-rgb); }
+
+.node-card {
+  position: absolute; inset: 0;
+  border: 2px solid #fff;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  transform: scale(calc(.82 + var(--g) * .4));
+  opacity: calc(.6 + var(--g) * .4);
+  filter: grayscale(calc((1 - var(--g)) * .55));
+  box-shadow: 0 6px 18px rgba(29, 29, 31, calc(.08 + var(--g) * .08)),
+              0 0 calc(var(--g) * 50px) rgba(var(--c), calc(var(--g) * .95));
+  transition: transform .35s var(--ease), opacity .35s var(--ease),
+              filter .35s var(--ease), box-shadow .35s var(--ease);
+}
+.node-card img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.node-label {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: .9375rem;
+  font-weight: 600;
+  text-shadow: 0 0 10px #fff, 0 0 4px #fff;
+  opacity: calc((var(--g) - .55) * 2.6);
+  pointer-events: none;
+}
+
+.stage-chip {
+  position: absolute;
+  top: 14px; left: 14px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: rgba(255, 255, 255, .85);
+  color: var(--muted);
+  font-size: .875rem;
+  pointer-events: none;
+}
+.stage-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 16px;
+  padding: 0 16px;
+  color: var(--muted);
+  font-size: .9375rem;
+  pointer-events: none;
+  transition: opacity .4s var(--ease);
+}
+.stage-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+
+/* ============================================================
+   4. 아카이브 폴더 (인스타그램 프로필 피드 스타일)
+============================================================ */
+.archive-wrap { max-width: 935px; }
+
+.archive-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+.archive-head h2 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; line-height: 1.15; }
+.archive-head .count { margin-top: 6px; color: var(--muted); }
+
+/* 폴더 바: 하이라이트처럼 동그란 커버 */
+.folders {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 6px 4px 18px;
+  scrollbar-width: none;
+}
+.folders::-webkit-scrollbar { display: none; }
+
+.folder {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 80px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .3s var(--ease);
+}
+.folder .ring {
+  width: 72px; height: 72px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background .35s var(--ease), transform .35s var(--ease), box-shadow .35s var(--ease);
+}
+.folder .cover {
+  display: grid;
+  place-items: center;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.folder .cover img { width: 100%; height: 100%; object-fit: cover; }
+.folder .name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; }
+.folder:hover .ring { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 26px rgba(var(--purple-rgb), .5); }
+.folder.active { color: var(--text); font-weight: 600; }
+.folder.active .ring { background: linear-gradient(135deg, var(--pink-strong), var(--purple-strong), var(--sky-strong)); }
+.folder.add .cover { border-style: dashed; border-color: rgba(29, 29, 31, .25); background: transparent; font-size: 1.75rem; font-weight: 400; }
+
+.folder-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 20px; }
+
+.feed { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(3px, 1.2vw, 14px); }
+
+.tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  overflow: hidden;
+  cursor: pointer;
+}
+.tile img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s var(--ease); }
+.tile::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: rgba(29, 29, 31, 0);
+  transition: background-color .35s var(--ease);
+}
+.tile:hover::after { background: rgba(29, 29, 31, .16); }
+.tile:hover img { transform: scale(1.05); }
+
+.empty-state {
+  padding: 72px 24px;
+  border: 1px dashed rgba(29, 29, 31, .22);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ============================================================
+   5. 푸터
+============================================================ */
+.site-footer {
+  padding: 72px 0 56px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .9375rem;
+}
+.footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 32px; }
+.footer-inner .logo { color: var(--text); display: inline-block; margin-bottom: 12px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 8px 24px; list-style: none; margin: 0; padding: 0; }
+.footer-links a { text-decoration: none; transition: color .3s var(--ease); }
+.footer-links a:hover { color: var(--purple-strong); }
+.copy { width: 100%; padding-top: 28px; border-top: 1px solid var(--line); font-size: .875rem; }
+
+/* ============================================================
+   6. 위로 가기 버튼
+============================================================ */
+.to-top {
+  position: fixed;
+  right: 20px; bottom: 20px;
+  z-index: 90;
+  width: 48px; height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, .92);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(29, 29, 31, .14);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity .4s var(--ease), visibility .4s var(--ease), transform .4s var(--ease),
+              border-color .3s var(--ease), background-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.to-top.show { opacity: 1; visibility: visible; transform: none; }
+.to-top:hover { background: var(--lemon); border-color: var(--lemon-strong); box-shadow: 0 8px 26px rgba(var(--lemon-rgb), .8); }
+
+/* ============================================================
+   7. 라이트박스 (이미지 + 설명·태그·링크)
+============================================================ */
+.lightbox {
+  position: fixed; inset: 0;
+  z-index: 300;
+  display: flex;
+  padding: 24px;
+  overflow-y: auto;
+  background: rgba(29, 29, 31, .62);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .35s var(--ease), visibility .35s var(--ease);
+}
+.lightbox.open { opacity: 1; visibility: visible; }
+
+.lb-figure {
+  width: min(760px, 100%);
+  margin: auto;
+  transform: scale(.96);
+  transition: transform .4s var(--ease);
+}
+.lightbox.open .lb-figure { transform: none; }
+
+.lb-figure > img {
+  max-height: 62vh;
+  width: auto;
+  margin-inline: auto;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .4);
+}
+
+.lb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+.lb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.lb-head h3 { font-size: 1.375rem; letter-spacing: -.025em; line-height: 1.3; }
+.badge {
+  padding: 2px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: .875rem;
+}
+.lb-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+
+.lb-close, .lb-nav {
+  position: fixed;
+  z-index: 2;
+  width: 48px; height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, .92);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .3s var(--ease), background-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.lb-close { top: 16px; right: 16px; font-size: 1.5rem; }
+.lb-nav { top: 50%; margin-top: -24px; font-size: 1.75rem; }
+.lb-nav.prev { left: 16px; }
+.lb-nav.next { right: 16px; }
+.lb-close:hover, .lb-nav:hover { background: var(--pink); border-color: var(--pink-strong); box-shadow: 0 8px 26px rgba(var(--pink-rgb), .6); }
+
+/* 설명 / 태그 / 링크 칩 (라이트박스에서 사용) */
+.memo { color: var(--muted); white-space: pre-wrap; word-break: keep-all; }
+.tags, .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.tag {
+  padding: 3px 11px;
+  border: 1px solid;
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-size: .875rem;
+  font-weight: 500;
+}
+.tag.t0 { background: rgba(var(--pink-rgb), .28);   border-color: rgba(var(--pink-rgb), .8); }
+.tag.t1 { background: rgba(var(--purple-rgb), .28); border-color: rgba(var(--purple-rgb), .8); }
+.tag.t2 { background: rgba(var(--sky-rgb), .38);    border-color: rgba(var(--sky-rgb), .95); }
+.tag.t3 { background: rgba(var(--lemon-rgb), .45);  border-color: rgba(var(--lemon-rgb), 1); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font-size: .875rem;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color .3s var(--ease), background-color .3s var(--ease);
+}
+.chip:hover { border-color: var(--purple-strong); background: rgba(var(--purple-rgb), .2); }
+
+/* ============================================================
+   8. 다이얼로그 (이미지 추가·수정 / 폴더)
+============================================================ */
+dialog {
+  width: min(580px, 94vw);
+  max-height: 92vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  overflow: auto;
+  box-shadow: 0 40px 100px rgba(29, 29, 31, .3);
+}
+#folderDialog { width: min(420px, 94vw); }
+dialog::backdrop { background: rgba(29, 29, 31, .5); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+dialog[open] { animation: pop .35s var(--ease); }
+@keyframes pop { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.dlg-inner { padding: 28px 24px 24px; }
+.dlg-inner h2 { font-size: 1.5rem; letter-spacing: -.03em; }
+.dlg-inner .desc { margin-top: 6px; color: var(--muted); font-size: .9375rem; }
+
+.field { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+.field label { font-weight: 600; font-size: .9375rem; }
+.field .hint { color: var(--muted); font-size: .875rem; margin-top: -2px; }
+
+.field input[type="text"],
+.field textarea,
+.field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  transition: border-color .3s var(--ease), box-shadow .3s var(--ease), background-color .3s var(--ease);
+}
+.field textarea { resize: vertical; min-height: 96px; }
+.field input:focus, .field textarea:focus, .field select:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--purple-strong);
+  box-shadow: 0 0 0 4px rgba(var(--purple-rgb), .35);
+}
+.field input[type="file"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed rgba(29, 29, 31, .25);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: .9375rem;
+}
+.field input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: .9375rem;
+  cursor: pointer;
+  transition: border-color .3s var(--ease), background-color .3s var(--ease);
+}
+.field input[type="file"]::file-selector-button:hover { border-color: var(--pink-strong); background: rgba(var(--pink-rgb), .25); }
+
+.edit-preview { width: 100%; max-height: 170px; object-fit: cover; border-radius: var(--radius-s); border: 1px solid var(--line); }
+
+.check-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 190px; overflow: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+}
+.check-row { display: flex; align-items: center; gap: 12px; min-height: 40px; cursor: pointer; font-size: 1rem; font-weight: 400; }
+.check-row input { width: 20px; height: 20px; flex: none; accent-color: var(--purple-strong); }
+.check-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.form-error { margin-top: 16px; color: #e0307f; font-size: .9375rem; min-height: 1.4em; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* ============================================================
+   9. 접근성: 움직임 줄이기 설정 존중
+============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* ============================================================
+   10. 반응형
+   모바일 ≤640px / 태블릿 641~1024px / 데스크톱 ≥1025px
+   (아카이브 피드는 인스타그램처럼 모든 화면에서 3열)
+============================================================ */
+
+/* ---- 태블릿: 641px ~ 1024px ---- */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .stage { --node-size: 106px; height: clamp(560px, 78vh, 760px); }
+}
+
+/* ---- 모바일: 최대 640px ---- */
+@media (max-width: 640px) {
+  body { font-size: 17px; }                       /* 본문 16px 이상 유지 */
+  .container { width: min(1120px, 100% - 32px); }
+  .section { padding: 88px 0; }
+
+  .stage { --node-size: 76px; height: clamp(500px, 76vh, 640px); }
+  .stage-hint { font-size: 1rem; }
+
+  /* 터치하기 쉬운 버튼: 최소 높이 48px */
+  .btn, .btn-small, .btn-ghost { min-height: 48px; font-size: 1rem; }
+  .hero-actions { flex-direction: column; align-items: stretch; max-width: 360px; margin-inline: auto; }
+  .field input[type="text"], .field textarea, .field select { min-height: 48px; font-size: 1rem; }
+  .field input[type="file"]::file-selector-button { min-height: 44px; }
+  .check-row { min-height: 48px; }
+  .memo { font-size: 1rem; }
+  .archive-head .btn { width: 100%; }
+  .folders { gap: 14px; }
+
+  /* 햄버거 메뉴: 아이콘 표시 + 네비게이션을 아래로 펼치기 */
+  .menu-btn { display: block; margin-right: -8px; }
+  .nav {
+    position: absolute;
+    top: var(--header-h); left: 0; right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 0 16px;
+    max-height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    background: rgba(245, 245, 247, .98);
+    border-bottom: 1px solid var(--line);
+    transition: max-height .45s var(--ease), padding .45s var(--ease), visibility .45s var(--ease);
+  }
+  .nav.open { max-height: 360px; padding: 12px 16px 24px; visibility: visible; }
+  .nav a:not(.btn) { min-height: 48px; font-size: 1.0625rem; }
+  .nav .btn { margin: 8px 0 0; }
+
+  .lb-nav { top: auto; bottom: 16px; margin-top: 0; }
+  .lightbox { padding: 16px 16px 80px; }
+  .dlg-actions { flex-direction: column-reverse; }
+  .dlg-actions .btn { width: 100%; }
+  .to-top { right: 16px; bottom: 16px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ============================================================
+     [헤더] 사이트 제목 zip. + 네비게이션 + 햄버거 버튼
+============================================================ -->
+<header class="site-header" id="siteHeader">
+  <div class="container header-inner">
+    <a href="#top" class="logo" aria-label="zip. 맨 위로">zip<span>.</span></a>
+
+    <button class="menu-btn" id="menuBtn" type="button" aria-label="메뉴 열기" aria-expanded="false" aria-controls="siteNav">
+      <span class="bar"></span>
+    </button>
+
+    <nav class="nav" id="siteNav" aria-label="주요 메뉴">
+      <a href="#archive">아카이브 폴더</a>
+      <button type="button" class="btn btn-primary btn-small" data-open-add>이미지 추가하기</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============================================================
+       [히어로] 제목 + 노드 지구본
+  ============================================================ -->
+  <section class="hero" aria-labelledby="heroTitle">
+    <div class="container">
+      <h1 id="heroTitle">아카이브 zip<span>.</span></h1>
+      <p class="lead">이미지, 링크, PDF를 폴더별로 보관하고, 노드와 링크로 연결해 한눈에 확인하는 취향 기록 공간입니다.</p>
+
+      <div class="hero-actions">
+        <button type="button" class="btn btn-primary" data-open-add>이미지 추가하기</button>
+        <a href="#archive" class="btn btn-secondary">아카이브 폴더</a>
+      </div>
+
+      <!-- 노드 지구본: 마우스를 올리면 이미지 부각, 클릭한 채 끌면 회전 -->
+      <div class="stage" id="stage" tabindex="0" role="region" aria-label="이미지 노드 지구본. 방향키로 돌릴 수 있습니다.">
+        <div class="world" id="world"></div>
+        <div class="stage-chip" id="stat"></div>
+        <p class="stage-empty" id="stageEmpty" hidden>이미지를 추가하면 여기에 노드로 나타나요.</p>
+        <p class="stage-hint" id="stageHint">마우스를 올리면 이미지가 깨어나요. 클릭한 채 끌면 지구본처럼 돌아가요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       [아카이브 폴더] 폴더 바 + 인스타그램 스타일 이미지 피드
+  ============================================================ -->
+  <section class="section" id="archive" aria-labelledby="archiveTitle" style="padding-top:24px">
+    <div class="container archive-wrap">
+      <div class="archive-head">
+        <div>
+          <h2 id="archiveTitle">아카이브 폴더</h2>
+          <p class="count" id="count" aria-live="polite"></p>
+        </div>
+        <button type="button" class="btn btn-primary" data-open-add>이미지 추가하기</button>
+      </div>
+
+      <div class="folders" id="folders" aria-label="폴더 목록"></div>
+      <div class="folder-tools" id="folderTools" hidden>
+        <button type="button" class="btn btn-ghost" id="folderRename">폴더 이름 바꾸기</button>
+        <button type="button" class="btn btn-ghost danger" id="folderDelete">폴더 삭제</button>
+      </div>
+
+      <div class="feed" id="feed"></div>
+      <div class="empty-state" id="emptyState" hidden></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================
+     [푸터]
+============================================================ -->
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <a href="#top" class="logo">zip<span>.</span></a>
+      <p>취향을 위한 영상·이미지 기록</p>
+    </div>
+    <ul class="footer-links">
+      <li><a href="#archive">아카이브 폴더</a></li>
+      <li><a href="#top">맨 위로</a></li>
+    </ul>
+    <p class="copy">© <span id="year">2026</span> zip. 기록은 이 브라우저에 저장돼요. <span id="storageNote"></span></p>
+  </div>
+</footer>
+
+<!-- ============================================================
+     [위로 가기 버튼] 스크롤 200px 이상일 때 우하단 표시
+============================================================ -->
+<button type="button" class="to-top" id="toTop" aria-label="맨 위로 가기">↑</button>
+
+<!-- ============================================================
+     [라이트박스] 이미지 + 제목·설명·태그·링크 (ESC / 바깥 클릭으로 닫기)
+============================================================ -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="이미지 크게 보기" aria-hidden="true">
+  <button type="button" class="lb-close" id="lbClose" aria-label="닫기">×</button>
+  <button type="button" class="lb-nav prev" id="lbPrev" aria-label="이전 이미지">‹</button>
+  <button type="button" class="lb-nav next" id="lbNext" aria-label="다음 이미지">›</button>
+  <figure class="lb-figure" style="margin:auto">
+    <img id="lbImg" src="" alt="">
+    <figcaption class="lb-panel">
+      <div class="lb-head">
+        <h3 id="lbTitle"></h3>
+        <span class="badge" id="lbFolder" hidden></span>
+      </div>
+      <p class="memo" id="lbMemo"></p>
+      <div class="tags" id="lbTags"></div>
+      <div class="chips" id="lbChips"></div>
+      <div class="lb-actions">
+        <button type="button" class="btn btn-secondary btn-small" id="lbEdit">수정하기</button>
+        <button type="button" class="btn btn-ghost danger" id="lbDelete">삭제</button>
+      </div>
+    </figcaption>
+  </figure>
+</div>
+
+<!-- ============================================================
+     [이미지 추가·수정 다이얼로그] 이미지·제목·설명·태그·링크·PDF·폴더·연결
+============================================================ -->
+<dialog id="addDialog" aria-labelledby="dlgTitle">
+  <form class="dlg-inner" id="addForm" novalidate>
+    <h2 id="dlgTitle">이미지 추가하기</h2>
+    <p class="desc" id="dlgDesc">여러 장을 고르면 같은 제목·설명·태그·폴더가 적용되고, 제목 뒤에 번호가 붙어요.</p>
+
+    <div class="field">
+      <label for="fImages" id="fImagesLabel">이미지 (여러 장 선택 가능)</label>
+      <img class="edit-preview" id="editPreview" alt="" hidden>
+      <input type="file" id="fImages" accept="image/*" multiple>
+    </div>
+
+    <div class="field">
+      <label for="fTitle">제목</label>
+      <input type="text" id="fTitle" maxlength="40" placeholder="비워 두면 파일 이름을 사용해요">
+    </div>
+
+    <div class="field">
+      <label for="fMemo">설명</label>
+      <textarea id="fMemo" placeholder="이 이미지가 왜 좋았는지, 어떤 점이 내 취향과 닮았는지 적어 보세요."></textarea>
+    </div>
+
+    <div class="field">
+      <label for="fTags">태그</label>
+      <input type="text" id="fTags" placeholder="예: 파스텔, 여백, 타이포">
+      <span class="hint">쉼표 또는 띄어쓰기로 구분해요. 최대 8개.</span>
+    </div>
+
+    <div class="field">
+      <label for="fFolder">폴더</label>
+      <select id="fFolder"></select>
+      <input type="text" id="fNewFolder" maxlength="20" placeholder="또는 새 폴더 이름을 입력하세요" aria-label="새 폴더 이름">
+    </div>
+
+    <div class="field">
+      <label for="fLinks">링크</label>
+      <textarea id="fLinks" style="min-height:72px" placeholder="https://… (한 줄에 하나, 영상 주소도 가능)"></textarea>
+    </div>
+
+    <div class="field" id="pdfBox" hidden>
+      <label>첨부된 PDF</label>
+      <span class="hint">체크한 파일은 저장할 때 제거돼요.</span>
+      <div class="check-list" id="pdfList"></div>
+    </div>
+
+    <div class="field">
+      <label for="fPdfs">PDF 자료</label>
+      <input type="file" id="fPdfs" accept="application/pdf,.pdf" multiple>
+    </div>
+
+    <!-- 추가 모드: 연결할 노드 1개 선택 -->
+    <div class="field" id="connectAdd">
+      <label for="fConnect">연결할 노드</label>
+      <select id="fConnect"></select>
+    </div>
+
+    <!-- 수정 모드: 연결된 노드를 체크박스로 편집 -->
+    <div class="field" id="connectEdit" hidden>
+      <label>연결된 노드</label>
+      <span class="hint">체크한 노드와 선으로 이어져요.</span>
+      <div class="check-list" id="connectList"></div>
+    </div>
+
+    <p class="form-error" id="formError" role="alert"></p>
+
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-secondary" id="dlgCancel">취소</button>
+      <button type="submit" class="btn btn-primary" id="submitBtn">추가하기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============================================================
+     [폴더 다이얼로그] 새 폴더 만들기 / 이름 바꾸기
+============================================================ -->
+<dialog id="folderDialog" aria-labelledby="folderDlgTitle">
+  <form class="dlg-inner" id="folderForm" novalidate>
+    <h2 id="folderDlgTitle">새 폴더</h2>
+    <div class="field">
+      <label for="fFolderName">폴더 이름</label>
+      <input type="text" id="fFolderName" maxlength="20" placeholder="예: 색감, 타이포, 공간">
+    </div>
+    <p class="form-error" id="folderError" role="alert"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-secondary" id="folderCancel">취소</button>
+      <button type="submit" class="btn btn-primary">저장하기</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ============================================================
+   JavaScript (순수 ES6+, 외부 라이브러리 없음)
+============================================================ */
+(() => {
+  'use strict';
+
+  /* ---------- 공통 헬퍼 ---------- */
+  const $  = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+  // 요소 생성 도우미 (textContent만 사용해 XSS 방지)
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  /* ============================================================
+     1. 햄버거 메뉴: 클릭 시 모바일 네비게이션 펼치기/접기
+  ============================================================ */
+  const header  = $('#siteHeader');
+  const menuBtn = $('#menuBtn');
+  const nav     = $('#siteNav');
+
+  const setMenu = (open) => {
+    nav.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기');
+  };
+
+  menuBtn.addEventListener('click', () => setMenu(!nav.classList.contains('open')));
+  nav.addEventListener('click', (e) => { if (e.target.closest('a, button')) setMenu(false); });
+  window.addEventListener('resize', () => { if (window.innerWidth > 640) setMenu(false); });
+
+  /* ============================================================
+     2 & 3. 스크롤 200px 이상: 헤더 어둡게 + 그림자 / 위로 가기 버튼 표시
+  ============================================================ */
+  const toTop = $('#toTop');
+  let scrollTicking = false;
+
+  const handleScroll = () => {
+    const passed = window.scrollY > 200;
+    header.classList.toggle('scrolled', passed);
+    toTop.classList.toggle('show', passed);
+    scrollTicking = false;
+  };
+  window.addEventListener('scroll', () => {
+    if (!scrollTicking) { scrollTicking = true; requestAnimationFrame(handleScroll); }
+  }, { passive: true });
+  handleScroll();
+
+  toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+  /* ============================================================
+     4. 데이터 & 저장소 (IndexedDB: 새로고침해도 이미지·PDF까지 유지)
+  ============================================================ */
+  let uid = 0;
+  const items = [];     // 기록 { id, title, memo, tags, links, folderId, src, file, pdfs:[{name, blob, url}] }
+  const edges = [];     // 노드 연결 [idA, idB]
+  const folders = [];   // 폴더 { id, name }
+  let activeFolder = 'all';   // 'all' | 'none' | 폴더 id
+
+  let db = null;        // 열기에 실패하면 null → 메모리에서만 동작
+
+  const openDb = () => new Promise((resolve) => {
+    try {
+      const req = indexedDB.open('zip-archive', 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('items', { keyPath: 'id' });
+        req.result.createObjectStore('kv', { keyPath: 'key' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch (_) { resolve(null); }
+  });
+
+  // 트랜잭션 한 번 실행 후 결과 반환 (실패하면 null)
+  const tx = (store, mode, fn) => new Promise((resolve) => {
+    if (!db) { resolve(null); return; }
+    try {
+      const t = db.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => resolve(req && 'result' in req ? req.result : true);
+      t.onerror = () => resolve(null);
+      t.onabort = () => resolve(null);
+    } catch (_) { resolve(null); }
+  });
+
+  const toRecord = (it) => ({
+    id: it.id, title: it.title, memo: it.memo, tags: it.tags, links: it.links, folderId: it.folderId,
+    src: it.file ? null : it.src,             // 샘플 이미지(데이터 주소)
+    file: it.file || null,                    // 업로드한 이미지 원본
+    pdfs: it.pdfs.map((p) => ({ name: p.name, blob: p.blob }))
+  });
+  const fromRecord = (rec) => ({
+    id: rec.id, title: rec.title, memo: rec.memo || '', tags: rec.tags || [], links: rec.links || [],
+    folderId: rec.folderId ?? null,
+    file: rec.file || null,
+    src: rec.file ? URL.createObjectURL(rec.file) : rec.src,
+    pdfs: (rec.pdfs || []).map((p) => ({ name: p.name, blob: p.blob, url: URL.createObjectURL(p.blob) }))
+  });
+
+  const saveItem   = (it) => tx('items', 'readwrite', (s) => s.put(toRecord(it)));
+  const deleteItemDb = (id) => tx('items', 'readwrite', (s) => s.delete(id));
+  const saveMeta   = () => tx('kv', 'readwrite', (s) => s.put({
+    key: 'meta', edges: edges.map((e) => [...e]), folders: folders.map((f) => ({ ...f })), uid
+  }));
+
+  // 저장 실패(용량 부족 등) 안내
+  const warnIfFailed = (result) => {
+    if (db && result === null) alert('저장 공간이 부족해 일부 내용이 저장되지 않았어요. 이미지 크기를 줄이거나 오래된 기록을 정리해 주세요.');
+  };
+
+  const addItem = (data) => {
+    const item = { id: ++uid, title: '', src: '', file: null, memo: '', tags: [], links: [], pdfs: [], folderId: null, ...data };
+    items.push(item);
+    return item;
+  };
+  const addFolder = (name) => {
+    const folder = { id: ++uid, name };
+    folders.push(folder);
+    return folder;
+  };
+
+  /* ---------- 샘플 이미지 (최초 1회만 채워짐, 삭제해도 다시 생기지 않음) ---------- */
+  const makeArt = (kind, a, b) => {
+    const defs = `<defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient>
+      <filter id="f" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="38"/></filter></defs>`;
+    const shapes = [
+      `<circle cx="400" cy="300" r="190" fill="url(#g)" filter="url(#f)" opacity=".9"/><circle cx="400" cy="300" r="110" fill="url(#g)"/>`,
+      Array.from({ length: 9 }, (_, i) => `<rect x="${64 + i * 80}" y="${120 + (i % 3) * 40}" width="44" height="${300 - (i % 4) * 50}" rx="8" fill="url(#g)" opacity="${0.55 + (i % 5) * 0.1}"/>`).join(''),
+      `<ellipse cx="260" cy="250" rx="190" ry="130" fill="${a}" filter="url(#f)" opacity=".9"/><ellipse cx="540" cy="360" rx="200" ry="140" fill="${b}" filter="url(#f)" opacity=".9"/>`,
+      Array.from({ length: 11 }, (_, i) => `<line x1="${i * 80}" y1="0" x2="${i * 80}" y2="600" stroke="#fff" stroke-opacity=".1"/><line x1="0" y1="${i * 60}" x2="800" y2="${i * 60}" stroke="#fff" stroke-opacity=".1"/>`).join('')
+        + `<path d="M60 470 C 240 60, 430 580, 740 130" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/>`,
+      `<rect width="800" height="600" fill="url(#g)" opacity=".9"/><ellipse cx="520" cy="470" rx="270" ry="56" fill="#000" opacity=".35" filter="url(#f)"/><rect x="300" y="140" width="120" height="330" rx="10" fill="#000" opacity=".25"/>`,
+      `<text x="400" y="400" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700" font-size="330" fill="url(#g)">Aa</text><line x1="120" y1="470" x2="680" y2="470" stroke="${a}" stroke-width="4"/>`,
+      Array.from({ length: 7 }, (_, i) => `<circle cx="400" cy="300" r="${40 + i * 42}" fill="none" stroke="url(#g)" stroke-width="${7 - i * 0.7}" opacity="${1 - i * 0.1}"/>`).join('')
+    ];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">${defs}<rect width="800" height="600" fill="#2a2a31"/>${shapes[kind]}</svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  };
+
+  const seedSamples = async () => {
+    const PINK = '#ff9cc6', PURPLE = '#b5a2ff', LEMON = '#ffe96b', SKY = '#a6dcff';
+    [
+      { t: '분홍의 온도',       k: 0, c: [PINK, PURPLE],  f: 1, memo: '어두운 배경 위에서 분홍이 더 따뜻하게 느껴졌다. 좋아하는 색의 기준을 이 정도 채도에서 잡아 보고 싶다.', tags: ['파스텔', '컬러'], links: ['https://www.apple.com'] },
+      { t: '하늘빛 여백',       k: 1, c: [SKY, PURPLE],   f: 1, memo: '막대 사이의 빈 공간이 리듬을 만든다. 여백도 디자인 재료라는 걸 다시 확인.', tags: ['여백', '리듬'] },
+      { t: '레몬빛 소음',       k: 2, c: [LEMON, PINK],   f: 1, memo: '경계가 번진 덩어리가 오히려 편안했다. 완벽하지 않은 형태가 감정을 만든다.', tags: ['질감', '번짐'] },
+      { t: '격자와 곡선',       k: 3, c: [SKY, LEMON],    f: 2, memo: '직선 위를 가로지르는 곡선 하나. 규칙과 예외가 함께 있을 때 시선이 머문다.', tags: ['구도', '선'] },
+      { t: '오전 7시의 그림자', k: 4, c: ['#ffc2dc', LEMON], f: 1, memo: '그림자의 길이가 시간을 말해 준다. 영상으로 담으면 더 좋을 장면.', tags: ['빛', '영상'], links: ['https://vimeo.com'] },
+      { t: '타이포 스케치',     k: 5, c: [PURPLE, SKY],   f: 2, memo: '글자 하나만으로도 분위기가 정해진다. 좋아하는 서체 후보로 보관.', tags: ['타이포', '서체'] },
+      { t: '빛이 번질 때',      k: 6, c: [PINK, SKY],     f: 2, memo: '중심에서 퍼지는 동심원이 집중과 확장을 동시에 보여 준다.', tags: ['빛', '패턴'] }
+    ].forEach((s) => addItem({ title: s.t, src: makeArt(s.k, s.c[0], s.c[1]), memo: s.memo, tags: s.tags, links: s.links || [], folderId: s.f }));
+
+    // 폴더는 이미지 다음 id로 만들고, 위에서 지정한 번호(1, 2)를 실제 id로 연결
+    const color = addFolder('색감');
+    const shape = addFolder('형태·글자');
+    items.forEach((it) => { it.folderId = it.folderId === 1 ? color.id : shape.id; });
+
+    [[1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [1, 3], [3, 6], [2, 5], [4, 7]].forEach((e) => edges.push(e));
+
+    for (const it of items) await saveItem(it);
+    await saveMeta();
+  };
+
+  // 저장된 데이터 불러오기 (없으면 샘플 채우기)
+  const loadAll = async () => {
+    db = await openDb();
+    let seeded = false;
+    if (db) {
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) { /* 무시 */ }
+      const recs = await tx('items', 'readonly', (s) => s.getAll());
+      const meta = await tx('kv', 'readonly', (s) => s.get('meta'));
+      if (meta) {
+        seeded = true;
+        edges.push(...(meta.edges || []));
+        folders.push(...(meta.folders || []));
+        uid = meta.uid || 0;
+      }
+      (recs || []).forEach((rec) => items.push(fromRecord(rec)));
+      uid = Math.max(uid, ...items.map((i) => i.id), ...folders.map((f) => f.id), 0);
+      // 불러온 뒤 남은 연결 중 없는 노드를 가리키는 것 정리
+      for (let i = edges.length - 1; i >= 0; i--) {
+        if (!items.some((it) => it.id === edges[i][0]) || !items.some((it) => it.id === edges[i][1])) edges.splice(i, 1);
+      }
+    }
+    if (!seeded && !items.length) await seedSamples();
+    if (!db) $('#storageNote').textContent = '(이 환경에서는 저장이 지원되지 않아 새로고침하면 사라져요.)';
+  };
+
+  /* ============================================================
+     5. 지구본 노드 그래프 (3D 회전을 순수 JS로 계산)
+        - 노드는 구 표면에 배치, 회전 행렬로 돌리고 원근 투영
+        - 마우스 이동: 가까운 이미지 부각 / 클릭한 채 끌기: 드래그 방향으로 회전
+  ============================================================ */
+  const stage = $('#stage');
+  const world = $('#world');
+  const stat  = $('#stat');
+  const hint  = $('#stageHint');
+  const stageEmpty = $('#stageEmpty');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const svgEl = (name, cls) => {
+    const node = document.createElementNS(SVG_NS, name);
+    if (cls) node.setAttribute('class', cls);
+    return node;
+  };
+
+  // SVG 레이어: 지구본 외곽선 + 위경도선 + 링크
+  const svg = svgEl('svg', 'links');
+  svg.setAttribute('aria-hidden', 'true');
+  const outline = svgEl('circle', 'globe-outline');
+  const gridG = svgEl('g');
+  const edgeG = svgEl('g');
+  svg.append(outline, gridG, edgeG);
+
+  /* ---------- 3x3 회전 행렬 도우미 ---------- */
+  const mul = (A, B) => {
+    const r = new Array(9);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        r[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j];
+      }
+    }
+    return r;
+  };
+  const apply = (m, v) => [
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+    m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
+  ];
+  const rotY = (t) => { const c = Math.cos(t), s = Math.sin(t); return [c, 0, s, 0, 1, 0, -s, 0, c]; };   // 좌우 회전
+  const rotX = (t) => { const c = Math.cos(t), s = Math.sin(t); return [1, 0, 0, 0, c, -s, 0, s, c]; };   // 상하 회전
+  const rotAxis = ([x, y, z], a) => {
+    const c = Math.cos(a), s = Math.sin(a), t = 1 - c;
+    return [t * x * x + c, t * x * y - s * z, t * x * z + s * y,
+            t * x * y + s * z, t * y * y + c, t * y * z - s * x,
+            t * x * z - s * y, t * y * z + s * x, t * z * z + c];
+  };
+  // 오차가 쌓이지 않도록 회전 행렬을 직교 정규화
+  const orthonormalize = (m) => {
+    let r0 = [m[0], m[1], m[2]], r1 = [m[3], m[4], m[5]];
+    const n0 = Math.hypot(...r0); r0 = r0.map((v) => v / n0);
+    const d = r0[0] * r1[0] + r0[1] * r1[1] + r0[2] * r1[2];
+    r1 = r1.map((v, i) => v - d * r0[i]);
+    const n1 = Math.hypot(...r1); r1 = r1.map((v) => v / n1);
+    const r2 = [r0[1] * r1[2] - r0[2] * r1[1], r0[2] * r1[0] - r0[0] * r1[2], r0[0] * r1[1] - r0[1] * r1[0]];
+    return [...r0, ...r1, ...r2];
+  };
+
+  /* ---------- 상태 ---------- */
+  let M = mul(rotX(.38), rotY(-.5));   // 현재 지구본 회전 상태
+  let base = [];                       // 노드 기본 위치(단위 구 위의 벡터)
+  let nodeEls = [], linkEls = [];
+  let W = 0, H = 0, R = 200, nodeSize = 120, nodeScale = 1;
+  let velYaw = 0, velPitch = 0;        // 놓은 뒤에도 이어지는 회전 관성
+  let focusIndex = null;               // 앞으로 가져올 노드
+  let pointer = null;                  // 마우스/터치 위치
+  let frameRaf = 0;
+
+  const rotateBy = (yaw, pitch) => { M = orthonormalize(mul(mul(rotX(pitch), rotY(yaw)), M)); };
+
+  // 노드를 구 표면에 고르게 배치 (피보나치 구)
+  const computeBase = () => {
+    const n = items.length;
+    base = items.map((_, i) => {
+      const y = n === 1 ? 0 : 1 - ((i + .5) * 2) / n;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const th = i * 2.399963 + Math.PI / 2;
+      return [Math.cos(th) * r, y, Math.sin(th) * r];
+    });
+  };
+
+  // 위경도선(지구본 격자) 점 목록
+  const STEPS = 72;
+  const ringVecs = [];
+  [-60, -30, 0, 30, 60].forEach((lat) => {
+    const p = (lat * Math.PI) / 180;
+    ringVecs.push(Array.from({ length: STEPS + 1 }, (_, i) => {
+      const t = (i / STEPS) * Math.PI * 2;
+      return [Math.cos(p) * Math.cos(t), Math.sin(p), Math.cos(p) * Math.sin(t)];
+    }));
+  });
+  [0, 45, 90, 135].forEach((lon) => {
+    const l = (lon * Math.PI) / 180;
+    ringVecs.push(Array.from({ length: STEPS + 1 }, (_, i) => {
+      const t = (i / STEPS) * Math.PI * 2;
+      return [Math.cos(t) * Math.cos(l), Math.sin(t), Math.cos(t) * Math.sin(l)];
+    }));
+  });
+  const ringEls = ringVecs.map(() => {
+    const front = svgEl('path', 'globe-line front');
+    const back = svgEl('path', 'globe-line back');
+    gridG.append(back, front);
+    return { front, back };
+  });
+
+  /* ---------- 한 프레임 그리기: 투영 + 부각 계산 ---------- */
+  const draw = () => {
+    if (!W) return;
+    const cx = W / 2, cy = H / 2, D = R * 4;     // D: 카메라 거리(원근감)
+    const project = (w) => {
+      const s = D / (D - w[2] * R);
+      return [cx + w[0] * R * s, cy + w[1] * R * s, s];
+    };
+
+    outline.setAttribute('cx', cx); outline.setAttribute('cy', cy); outline.setAttribute('r', R * 1.03);
+
+    // 위경도선 (앞면/뒷면을 나눠 그려 입체감 표현)
+    ringVecs.forEach((pts, k) => {
+      let f = '', b = '', prev = null;
+      pts.forEach((v, i) => {
+        const w = apply(M, v);
+        const [x, y] = project(w);
+        const side = w[2] >= 0 ? 'f' : 'b';
+        const seg = `${x.toFixed(1)} ${y.toFixed(1)}`;
+        if (i === 0) {
+          if (side === 'f') f += `M${seg}`; else b += `M${seg}`;
+        } else if (side === prev) {
+          if (side === 'f') f += `L${seg}`; else b += `L${seg}`;
+        } else {
+          if (prev === 'f') f += `L${seg}`; else b += `L${seg}`;
+          if (side === 'f') f += `M${seg}`; else b += `M${seg}`;
+        }
+        prev = side;
+      });
+      ringEls[k].front.setAttribute('d', f);
+      ringEls[k].back.setAttribute('d', b);
+    });
+
+    // 마우스 위치(무대 기준)
+    let px = 0, py = 0;
+    if (pointer) {
+      const rect = stage.getBoundingClientRect();
+      px = pointer.x - rect.left; py = pointer.y - rect.top;
+    }
+    const spotR = nodeSize * 1.8;
+
+    // 노드
+    const proj = base.map((b, i) => {
+      const w = apply(M, b);
+      const [x, y, s] = project(w);
+      const z = w[2];
+      const depth = (z + 1) / 2;                       // 0(뒤) ~ 1(앞)
+      const idle = .2 + .35 * depth;                   // 마우스가 없을 때 기본 밝기
+      let h = 0;
+      if (pointer) {
+        const t = Math.max(0, 1 - Math.hypot(x - px, y - py) / spotR);
+        h = t * t * (3 - 2 * t) * (.35 + .65 * depth); // 마우스에 가까울수록, 앞쪽일수록 강하게
+      }
+      const g = idle + (1 - idle) * h;
+      const node = nodeEls[i];
+      node.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) scale(${(s * nodeScale).toFixed(3)})`;
+      node.style.opacity = (.3 + .7 * depth).toFixed(2);
+      node.style.zIndex = String(Math.round(z * 100) + 120 + Math.round(h * 60));
+      node.style.pointerEvents = z < -.4 ? 'none' : 'auto';
+      node.style.setProperty('--g', g.toFixed(3));
+      return { w, x, y, z, h };
+    });
+
+    // 링크: 구 표면을 따르는 곡선
+    linkEls.forEach(({ el: path, a, b }) => {
+      const pa = proj[a], pb = proj[b];
+      const mx = pa.w[0] + pb.w[0], my = pa.w[1] + pb.w[1], mz = pa.w[2] + pb.w[2];
+      const len = Math.hypot(mx, my, mz);
+      let d, zAvg;
+      if (len < .25) {
+        d = `M${pa.x.toFixed(1)} ${pa.y.toFixed(1)}L${pb.x.toFixed(1)} ${pb.y.toFixed(1)}`;
+        zAvg = (pa.z + pb.z) / 2;
+      } else {
+        const mw = [mx / len, my / len, mz / len];
+        const [qx, qy] = project(mw);
+        const cxp = 2 * qx - (pa.x + pb.x) / 2, cyp = 2 * qy - (pa.y + pb.y) / 2;
+        d = `M${pa.x.toFixed(1)} ${pa.y.toFixed(1)}Q${cxp.toFixed(1)} ${cyp.toFixed(1)} ${pb.x.toFixed(1)} ${pb.y.toFixed(1)}`;
+        zAvg = (pa.z + pb.z + mw[2]) / 3;
+      }
+      path.setAttribute('d', d);
+      const k = Math.sqrt(pa.h * pb.h);                // 양쪽 노드가 밝을수록 선명하게
+      const baseOp = .1 + .3 * ((zAvg + 1) / 2);
+      path.style.strokeOpacity = (baseOp + (.95 - baseOp) * k).toFixed(3);
+      path.style.strokeWidth = (1.2 + 1.8 * k).toFixed(2);
+    });
+  };
+
+  // 프레임 루프: 관성·포커스 이동 중에만 계속 돌고, 평소에는 필요할 때만 그림
+  const frame = () => {
+    frameRaf = 0;
+    let active = false;
+    if (!drag) {
+      if (focusIndex !== null && base[focusIndex]) {
+        const v = apply(M, base[focusIndex]);
+        const ang = Math.acos(Math.max(-1, Math.min(1, v[2])));
+        if (ang < .01) {
+          focusIndex = null;
+        } else {
+          const axis = [v[1], -v[0], 0];
+          const n = Math.hypot(...axis);
+          const ax = n < 1e-6 ? [0, 1, 0] : axis.map((c) => c / n);
+          const step = reduceMotion ? ang : Math.min(ang, ang * .1 + .002);
+          M = orthonormalize(mul(rotAxis(ax, step), M));
+          active = true;
+        }
+      } else if (Math.abs(velYaw) + Math.abs(velPitch) > .0004) {
+        rotateBy(velYaw, velPitch);
+        velYaw *= .94; velPitch *= .94;
+        active = true;
+      } else {
+        velYaw = velPitch = 0;
+      }
+    }
+    draw();
+    if (active) requestFrame();
+  };
+  const requestFrame = () => { if (!frameRaf) frameRaf = requestAnimationFrame(frame); };
+
+  // 크기 계산 (창 크기가 바뀌면 다시 실행)
+  const layout = () => {
+    nodeSize = parseFloat(getComputedStyle(stage).getPropertyValue('--node-size')) || 120;
+    W = stage.clientWidth; H = stage.clientHeight;
+    nodeScale = Math.min(1.1, Math.max(.55, 2.6 / Math.sqrt(Math.max(items.length, 1))));  // 노드가 많으면 작게
+    R = Math.max(80, Math.min(W, H) / 2 - nodeSize * nodeScale * .9);
+    requestFrame();
+  };
+
+  // 노드/링크 DOM 만들기
+  const buildGraph = () => {
+    world.replaceChildren(svg);
+    edgeG.replaceChildren();
+    nodeEls = []; linkEls = [];
+    computeBase();
+    const indexById = new Map(items.map((it, i) => [it.id, i]));
+
+    edges.forEach(([ida, idb], n) => {
+      if (!indexById.has(ida) || !indexById.has(idb)) return;
+      const path = svgEl('path', `link c${n % 4}`);
+      edgeG.append(path);
+      linkEls.push({ el: path, a: indexById.get(ida), b: indexById.get(idb) });
+    });
+
+    items.forEach((item, i) => {
+      const node = el('button', `node c${i % 4}`);
+      node.type = 'button';
+      node.setAttribute('aria-label', `${item.title} 크게 보기`);
+      const card = el('span', 'node-card');
+      const img = new Image();
+      img.src = item.src; img.alt = item.title; img.draggable = false;
+      card.append(img);
+      node.append(card, el('span', 'node-label', item.title));
+      node.addEventListener('click', () => openLightbox(item, items));
+      world.append(node);
+      nodeEls.push(node);
+    });
+
+    stat.textContent = `노드 ${items.length} · 링크 ${linkEls.length}`;
+    stageEmpty.hidden = items.length > 0;
+  };
+
+  /* ---------- 마우스 이동(클릭 없이) → 이미지 부각 ---------- */
+  let drag = null, dragMoved = false;
+
+  stage.addEventListener('pointermove', (e) => {
+    if (drag) return;
+    pointer = { x: e.clientX, y: e.clientY };
+    requestFrame();
+  });
+  stage.addEventListener('pointerleave', () => {
+    if (drag) return;
+    pointer = null;
+    requestFrame();
+  });
+
+  /* ---------- 클릭한 채 상하좌우로 끌기 → 드래그 방향으로 지구본 회전 ---------- */
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    drag = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, lt: performance.now() };
+    dragMoved = false;
+    focusIndex = null;
+    velYaw = velPitch = 0;
+    pointer = { x: e.clientX, y: e.clientY };
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!dragMoved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) {
+      dragMoved = true;
+      stage.classList.add('dragging');
+      hint.style.opacity = '0';
+    }
+    if (dragMoved) {
+      const yaw = (e.clientX - drag.lx) / R;      // 오른쪽으로 끌면 앞면이 오른쪽으로
+      const pitch = -(e.clientY - drag.ly) / R;   // 아래로 끌면 앞면이 아래로
+      rotateBy(yaw, pitch);
+      velYaw = velYaw * .5 + yaw * .5;
+      velPitch = velPitch * .5 + pitch * .5;
+      drag.lt = performance.now();
+    }
+    drag.lx = e.clientX; drag.ly = e.clientY;
+    pointer = { x: e.clientX, y: e.clientY };
+    requestFrame();
+  });
+
+  const endDrag = () => {
+    if (!drag) return;
+    if (performance.now() - drag.lt > 80 || reduceMotion) { velYaw = velPitch = 0; }
+    velYaw = Math.max(-.15, Math.min(.15, velYaw));
+    velPitch = Math.max(-.15, Math.min(.15, velPitch));
+    drag = null;
+    stage.classList.remove('dragging');
+    requestFrame();
+  };
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+
+  // 드래그 직후에 발생하는 클릭은 라이트박스를 열지 않도록 차단
+  stage.addEventListener('click', (e) => {
+    if (dragMoved) { e.stopPropagation(); e.preventDefault(); dragMoved = false; }
+  }, true);
+
+  // 키보드 접근성: 방향키로 지구본 돌리기
+  stage.addEventListener('keydown', (e) => {
+    if (e.target !== stage) return;
+    const map = { ArrowLeft: [-.035, 0], ArrowRight: [.035, 0], ArrowUp: [0, .035], ArrowDown: [0, -.035] };
+    if (!map[e.key]) return;
+    e.preventDefault();
+    focusIndex = null;
+    velYaw = map[e.key][0]; velPitch = map[e.key][1];
+    requestFrame();
+  });
+
+  // 특정 노드를 앞으로 부드럽게 가져오기
+  const rotateToIndex = (i) => { focusIndex = i; pointer = null; requestFrame(); };
+
+  window.addEventListener('resize', layout);
+
+  /* ============================================================
+     6. 아카이브: 폴더 바 + 인스타그램 스타일 피드
+  ============================================================ */
+  const foldersBar  = $('#folders');
+  const folderTools = $('#folderTools');
+  const feed  = $('#feed');
+  const empty = $('#emptyState');
+  const count = $('#count');
+
+  const folderById = (id) => folders.find((f) => f.id === id);
+  const visibleItems = () => {
+    if (activeFolder === 'all') return items;
+    if (activeFolder === 'none') return items.filter((it) => it.folderId == null);
+    return items.filter((it) => it.folderId === activeFolder);
+  };
+
+  // 폴더 한 개(동그란 커버 + 이름)
+  const folderChip = (key, name, coverSrc) => {
+    const btn = el('button', 'folder' + (activeFolder === key ? ' active' : ''));
+    btn.type = 'button';
+    btn.setAttribute('aria-pressed', String(activeFolder === key));
+    const ring = el('span', 'ring');
+    const cover = el('span', 'cover');
+    if (coverSrc) {
+      const img = new Image();
+      img.src = coverSrc; img.alt = '';
+      cover.append(img);
+    } else {
+      cover.textContent = name.charAt(0);
+    }
+    ring.append(cover);
+    btn.append(ring, el('span', 'name', name));
+    btn.addEventListener('click', () => { activeFolder = key; renderArchive(); });
+    return btn;
+  };
+
+  const renderFolders = () => {
+    const chips = [folderChip('all', '전체', items.length ? items[items.length - 1].src : null)];
+    folders.forEach((f) => {
+      const first = items.find((it) => it.folderId === f.id);
+      chips.push(folderChip(f.id, f.name, first ? first.src : null));
+    });
+    const unsorted = items.filter((it) => it.folderId == null);
+    if (folders.length && unsorted.length) chips.push(folderChip('none', '미분류', unsorted[0].src));
+
+    const add = el('button', 'folder add');
+    add.type = 'button';
+    const ring = el('span', 'ring'), cover = el('span', 'cover', '+');
+    ring.append(cover);
+    add.append(ring, el('span', 'name', '새 폴더'));
+    add.addEventListener('click', () => openFolderDialog());
+    chips.push(add);
+
+    foldersBar.replaceChildren(...chips);
+    folderTools.hidden = typeof activeFolder !== 'number';
+  };
+
+  const renderFeed = () => {
+    const list = visibleItems();
+    feed.replaceChildren(...list.map((item) => {
+      const tile = el('button', 'tile');
+      tile.type = 'button';
+      tile.setAttribute('aria-label', `${item.title} 자세히 보기`);
+      const img = new Image();
+      img.src = item.src; img.alt = item.title; img.loading = 'lazy';
+      tile.append(img);
+      tile.addEventListener('click', () => openLightbox(item, list));
+      return tile;
+    }));
+    empty.hidden = list.length > 0;
+    empty.textContent = items.length
+      ? '이 폴더에는 아직 이미지가 없어요.'
+      : '아직 기록이 없어요. ‘이미지 추가하기’로 첫 이미지를 남겨 보세요.';
+
+    const label = activeFolder === 'all' ? '' : ` · ${activeFolder === 'none' ? '미분류' : (folderById(activeFolder) || {}).name}`;
+    count.textContent = `이미지 ${list.length}장${label}`;
+  };
+
+  const renderArchive = () => {
+    if (typeof activeFolder === 'number' && !folderById(activeFolder)) activeFolder = 'all';
+    renderFolders();
+    renderFeed();
+  };
+
+  const render = () => {
+    buildGraph();
+    renderArchive();
+    layout();
+  };
+
+  const removeItem = async (id) => {
+    const idx = items.findIndex((it) => it.id === id);
+    if (idx < 0) return;
+    if (items[idx].file) URL.revokeObjectURL(items[idx].src);
+    items.splice(idx, 1);
+    for (let i = edges.length - 1; i >= 0; i--) if (edges[i].includes(id)) edges.splice(i, 1);
+    render();
+    await deleteItemDb(id);
+    await saveMeta();
+  };
+
+  /* ---------- 폴더 이름 바꾸기 / 삭제 ---------- */
+  $('#folderRename').addEventListener('click', () => {
+    const f = folderById(activeFolder);
+    if (f) openFolderDialog(f);
+  });
+  $('#folderDelete').addEventListener('click', async () => {
+    const f = folderById(activeFolder);
+    if (!f || !confirm(`‘${f.name}’ 폴더를 삭제할까요? 안의 이미지는 삭제되지 않고 미분류로 이동해요.`)) return;
+    const moved = items.filter((it) => it.folderId === f.id);
+    moved.forEach((it) => { it.folderId = null; });
+    folders.splice(folders.indexOf(f), 1);
+    activeFolder = 'all';
+    renderArchive();
+    for (const it of moved) await saveItem(it);
+    await saveMeta();
+  });
+
+  /* ============================================================
+     7. 라이트박스: 이미지 클릭 → 설명·태그·링크와 함께 크게 보기
+        ESC 또는 바깥 클릭으로 닫기, 좌우 버튼/방향키로 이전·다음
+  ============================================================ */
+  const lb       = $('#lightbox');
+  const lbImg    = $('#lbImg');
+  const lbTitle  = $('#lbTitle');
+  const lbFolder = $('#lbFolder');
+  const lbMemo   = $('#lbMemo');
+  const lbTags   = $('#lbTags');
+  const lbChips  = $('#lbChips');
+  const lbClose  = $('#lbClose');
+  const lbPrev   = $('#lbPrev');
+  const lbNext   = $('#lbNext');
+  let lastFocus = null;
+  let lbItem = null;
+  let lbList = [];
+
+  // 태그/링크/PDF 요소 만들기
+  const buildTags = (tags) => tags.map((t, i) => el('span', `tag t${i % 4}`, '#' + t));
+  const buildChips = (item) => {
+    const chips = [];
+    item.links.forEach((url) => {
+      const a = el('a', 'chip', new URL(url).hostname.replace(/^www\./, ''));
+      a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.title = url;
+      chips.push(a);
+    });
+    item.pdfs.forEach((pdf) => {
+      const a = el('a', 'chip', 'PDF · ' + pdf.name);
+      a.href = pdf.url; a.target = '_blank'; a.rel = 'noopener';
+      chips.push(a);
+    });
+    return chips;
+  };
+
+  const showInLightbox = (item) => {
+    lbItem = item;
+    lbImg.src = item.src;
+    lbImg.alt = item.title;
+    lbTitle.textContent = item.title;
+    const folder = folderById(item.folderId);
+    lbFolder.hidden = !folder;
+    lbFolder.textContent = folder ? folder.name : '';
+    lbMemo.textContent = item.memo;
+    lbMemo.hidden = !item.memo;
+    lbTags.replaceChildren(...buildTags(item.tags));
+    lbTags.hidden = !item.tags.length;
+    const chips = buildChips(item);
+    lbChips.replaceChildren(...chips);
+    lbChips.hidden = !chips.length;
+    const multi = lbList.length > 1;
+    lbPrev.hidden = !multi; lbNext.hidden = !multi;
+  };
+
+  const openLightbox = (item, list = items) => {
+    lbList = list;
+    showInLightbox(item);
+    if (!lb.classList.contains('open')) {
+      lastFocus = document.activeElement;
+      lb.classList.add('open');
+      lb.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('no-scroll');
+      lbClose.focus({ preventScroll: true });
+    }
+  };
+
+  const closeLightbox = () => {
+    if (!lb.classList.contains('open')) return;
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('no-scroll');
+    if (lastFocus) lastFocus.focus({ preventScroll: true });
+  };
+
+  const stepLightbox = (dir) => {
+    if (lbList.length < 2) return;
+    const i = lbList.indexOf(lbItem);
+    showInLightbox(lbList[(i + dir + lbList.length) % lbList.length]);
+  };
+
+  lbPrev.addEventListener('click', () => stepLightbox(-1));
+  lbNext.addEventListener('click', () => stepLightbox(1));
+  // 이미지·설명 패널 바깥 영역을 클릭하거나 닫기 버튼을 누르면 닫힘
+  lb.addEventListener('click', (e) => {
+    if (e.target === lbClose || !e.target.closest('.lb-figure, .lb-nav')) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') stepLightbox(-1);
+    if (e.key === 'ArrowRight') stepLightbox(1);
+  });
+  $('#lbEdit').addEventListener('click', () => { if (lbItem) openDialog(lbItem); });
+  $('#lbDelete').addEventListener('click', () => {
+    if (!lbItem || !confirm(`‘${lbItem.title}’ 기록을 삭제할까요?`)) return;
+    const id = lbItem.id;
+    closeLightbox();
+    removeItem(id);
+  });
+
+  /* ============================================================
+     8. 이미지 추가 / 수정 다이얼로그 (같은 폼을 모드만 바꿔 사용)
+  ============================================================ */
+  const dlg       = $('#addDialog');
+  const form      = $('#addForm');
+  const dlgTitle  = $('#dlgTitle');
+  const dlgDesc   = $('#dlgDesc');
+  const submitBtn = $('#submitBtn');
+  const fImages   = $('#fImages');
+  const fImagesLabel = $('#fImagesLabel');
+  const editPreview  = $('#editPreview');
+  const fTitle    = $('#fTitle');
+  const fMemo     = $('#fMemo');
+  const fTags     = $('#fTags');
+  const fLinks    = $('#fLinks');
+  const fPdfs     = $('#fPdfs');
+  const fFolder   = $('#fFolder');
+  const fNewFolder = $('#fNewFolder');
+  const pdfBox    = $('#pdfBox');
+  const pdfList   = $('#pdfList');
+  const fConnect  = $('#fConnect');
+  const connectAdd  = $('#connectAdd');
+  const connectEdit = $('#connectEdit');
+  const connectList = $('#connectList');
+  const formError = $('#formError');
+  let editingId = null;     // null이면 추가 모드, id가 있으면 수정 모드
+
+  const checkRow = (value, text, checked) => {
+    const label = el('label', 'check-row');
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.value = value; input.checked = checked;
+    label.append(input, el('span', '', text));
+    return label;
+  };
+
+  const fillFolderOptions = (selectedId) => {
+    const opts = [new Option('폴더 없음', '')];
+    folders.forEach((f) => opts.push(new Option(f.name, String(f.id))));
+    fFolder.replaceChildren(...opts);
+    fFolder.value = selectedId == null ? '' : String(selectedId);
+  };
+
+  // 추가 모드: "연결할 노드" 선택지 (기본값: 마지막 노드)
+  const fillConnectOptions = () => {
+    const opts = [new Option('연결하지 않음', 'none')];
+    items.forEach((it) => opts.push(new Option(it.title, String(it.id))));
+    fConnect.replaceChildren(...opts);
+    fConnect.value = items.length ? String(items[items.length - 1].id) : 'none';
+  };
+
+  // 수정 모드: 이미 연결된 노드를 체크한 목록
+  const isLinked = (a, b) => edges.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  const fillConnectChecks = (item) => {
+    const others = items.filter((o) => o.id !== item.id);
+    connectList.replaceChildren(...(others.length
+      ? others.map((o) => checkRow(String(o.id), o.title, isLinked(item.id, o.id)))
+      : [el('span', 'hint', '연결할 다른 노드가 아직 없어요.')]));
+  };
+
+  // 다이얼로그 열기: item이 있으면 수정, 없으면 추가
+  const openDialog = (item = null) => {
+    const isEdit = Boolean(item);
+    editingId = isEdit ? item.id : null;
+    form.reset();
+    formError.textContent = '';
+
+    dlgTitle.textContent  = isEdit ? '기록 수정하기' : '이미지 추가하기';
+    dlgDesc.textContent   = isEdit
+      ? '내용을 고친 뒤 저장하세요. 새 이미지를 고르면 기존 이미지가 교체돼요.'
+      : '여러 장을 고르면 같은 제목·설명·태그·폴더가 적용되고, 제목 뒤에 번호가 붙어요.';
+    submitBtn.textContent = isEdit ? '저장하기' : '추가하기';
+    fImages.multiple = !isEdit;
+    fImagesLabel.textContent = isEdit ? '이미지 교체 (선택)' : '이미지 (여러 장 선택 가능)';
+    editPreview.hidden = !isEdit;
+    connectAdd.hidden = isEdit;
+    connectEdit.hidden = !isEdit;
+
+    if (isEdit) {
+      editPreview.src = item.src; editPreview.alt = item.title;
+      fTitle.value = item.title;
+      fMemo.value  = item.memo;
+      fTags.value  = item.tags.join(', ');
+      fLinks.value = item.links.join('\n');
+      fillFolderOptions(item.folderId);
+      fillConnectChecks(item);
+      pdfBox.hidden = item.pdfs.length === 0;
+      pdfList.replaceChildren(...item.pdfs.map((p) => checkRow(p.url, p.name, false)));
+    } else {
+      pdfBox.hidden = true;
+      fillFolderOptions(typeof activeFolder === 'number' ? activeFolder : null);  // 보고 있던 폴더를 기본값으로
+      fillConnectOptions();
+    }
+
+    closeLightbox();
+    if (!dlg.open) dlg.showModal();
+  };
+
+  $$('[data-open-add]').forEach((btn) => btn.addEventListener('click', () => openDialog()));
+  $('#dlgCancel').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });   // 바깥 클릭으로 닫기
+
+  // 입력값 정리
+  const parseTags = (raw) =>
+    [...new Set(raw.split(/[,\s]+/).map((t) => t.replace(/^#+/, '').trim()).filter(Boolean))].slice(0, 8);
+
+  const parseLinks = (raw) => {
+    const urls = [];
+    raw.split(/[\s,]+/).filter(Boolean).forEach((text) => {
+      try {
+        const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : 'https://' + text);
+        if (u.protocol === 'http:' || u.protocol === 'https:') urls.push(u.href);
+      } catch (_) { /* 잘못된 주소는 무시 */ }
+    });
+    return [...new Set(urls)];
+  };
+
+  const readPdfs = () => [...fPdfs.files]
+    .filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name))
+    .map((f) => ({ name: f.name, blob: f, url: URL.createObjectURL(f) }));
+
+  // 폼에서 폴더 결정: 새 폴더 이름이 있으면 만들고(같은 이름이 있으면 재사용), 없으면 선택값 사용
+  const resolveFolderId = () => {
+    const name = fNewFolder.value.trim();
+    if (name) {
+      const same = folders.find((f) => f.name === name);
+      return same ? same.id : addFolder(name).id;
+    }
+    return fFolder.value ? Number(fFolder.value) : null;
+  };
+
+  // 새 기록 저장
+  const saveNew = async () => {
+    const files = [...fImages.files].filter((f) => f.type.startsWith('image/'));
+    if (!files.length) { formError.textContent = '이미지를 한 장 이상 선택해 주세요.'; return; }
+
+    const title = fTitle.value.trim();
+    const memo  = fMemo.value.trim();
+    const tags  = parseTags(fTags.value);
+    const links = parseLinks(fLinks.value);
+    const pdfs  = readPdfs();
+    const folderId = resolveFolderId();
+
+    let target = fConnect.value === 'none' ? null : Number(fConnect.value);
+    let lastIndex = 0;
+    const created = files.map((file, i) => {
+      const item = addItem({
+        title: title ? (files.length > 1 ? `${title} ${i + 1}` : title) : file.name.replace(/\.[^.]+$/, ''),
+        file, src: URL.createObjectURL(file),
+        memo, tags, links, pdfs, folderId
+      });
+      if (target !== null) edges.push([target, item.id]);   // 선택한 노드(또는 직전 노드)와 연결
+      target = item.id;
+      lastIndex = items.length - 1;
+      return item;
+    });
+
+    if (activeFolder !== 'all') activeFolder = folderId ?? 'none';   // 새로 넣은 이미지가 바로 보이도록
+    render();
+    dlg.close();
+    rotateToIndex(lastIndex);
+
+    let ok = true;
+    for (const it of created) { if (await saveItem(it) === null) ok = false; }
+    if (await saveMeta() === null) ok = false;
+    if (!ok) warnIfFailed(null);
+  };
+
+  // 기존 기록 수정 저장
+  const saveEdit = async () => {
+    const item = items.find((it) => it.id === editingId);
+    if (!item) { dlg.close(); return; }
+
+    const picked = [...fImages.files];
+    const newImage = picked.find((f) => f.type.startsWith('image/'));
+    if (picked.length && !newImage) { formError.textContent = '이미지 파일을 선택해 주세요.'; return; }
+
+    item.title = fTitle.value.trim() || item.title;
+    item.memo  = fMemo.value.trim();
+    item.tags  = parseTags(fTags.value);
+    item.links = parseLinks(fLinks.value);
+    item.folderId = resolveFolderId();
+
+    if (newImage) {                                   // 이미지 교체
+      if (item.file) URL.revokeObjectURL(item.src);
+      item.file = newImage;
+      item.src = URL.createObjectURL(newImage);
+    }
+
+    const removed = new Set($$('input:checked', pdfList).map((i) => i.value));   // PDF 제거 + 추가
+    item.pdfs = item.pdfs.filter((p) => !removed.has(p.url)).concat(readPdfs());
+
+    // 연결 갱신: 이 노드의 기존 링크를 지우고 체크된 노드와 다시 연결
+    const kept = edges.filter(([a, b]) => a !== item.id && b !== item.id);
+    edges.length = 0;
+    edges.push(...kept);
+    $$('input:checked', connectList).forEach((i) => edges.push([item.id, Number(i.value)]));
+
+    render();
+    dlg.close();
+    rotateToIndex(items.indexOf(item));
+
+    const r1 = await saveItem(item);
+    const r2 = await saveMeta();
+    if (r1 === null || r2 === null) warnIfFailed(null);
+  };
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (editingId === null) saveNew(); else saveEdit();
+  });
+
+  /* ============================================================
+     9. 폴더 다이얼로그 (새 폴더 / 이름 바꾸기)
+  ============================================================ */
+  const folderDlg   = $('#folderDialog');
+  const folderForm  = $('#folderForm');
+  const folderDlgTitle = $('#folderDlgTitle');
+  const fFolderName = $('#fFolderName');
+  const folderError = $('#folderError');
+  let editingFolderId = null;
+
+  const openFolderDialog = (folder = null) => {
+    editingFolderId = folder ? folder.id : null;
+    folderDlgTitle.textContent = folder ? '폴더 이름 바꾸기' : '새 폴더';
+    fFolderName.value = folder ? folder.name : '';
+    folderError.textContent = '';
+    folderDlg.showModal();
+  };
+  $('#folderCancel').addEventListener('click', () => folderDlg.close());
+  folderDlg.addEventListener('click', (e) => { if (e.target === folderDlg) folderDlg.close(); });
+
+  folderForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = fFolderName.value.trim();
+    if (!name) { folderError.textContent = '폴더 이름을 입력해 주세요.'; return; }
+    if (folders.some((f) => f.name === name && f.id !== editingFolderId)) { folderError.textContent = '같은 이름의 폴더가 이미 있어요.'; return; }
+
+    if (editingFolderId !== null) {
+      folderById(editingFolderId).name = name;
+    } else {
+      activeFolder = addFolder(name).id;      // 만든 폴더로 바로 이동
+    }
+    folderDlg.close();
+    renderArchive();
+    warnIfFailed(await saveMeta());
+  });
+
+  /* ============================================================
+     10. 초기 실행: 저장된 데이터를 불러온 뒤 화면 그리기
+  ============================================================ */
+  $('#year').textContent = new Date().getFullYear();
+  layout();                       // 무대 크기를 먼저 계산
+  loadAll().then(render);
+})();
+</script>
+</body>
+</html>
